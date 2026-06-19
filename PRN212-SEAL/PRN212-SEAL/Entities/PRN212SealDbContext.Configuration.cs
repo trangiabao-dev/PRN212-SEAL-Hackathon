@@ -8,12 +8,13 @@ public partial class PRN212SealDbContext
     private string GetConnectionString()
     {
         IConfiguration config = new ConfigurationBuilder()
-             .SetBasePath(AppContext.BaseDirectory)
-                    .AddJsonFile("appsettings.json", true, true)
-                    .Build();
-        var strConn = config["ConnectionStrings:DefaultConnection"];
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .Build();
 
-        return strConn;
+        return config["ConnectionStrings:DefaultConnection"]
+            ?? throw new InvalidOperationException(
+                "Không tìm thấy ConnectionStrings:DefaultConnection trong appsettings.json.");
     }
 
 
