@@ -30,7 +30,7 @@ public class AuthService : IAuthService
         return null;
     }
 
-    public async Task<(bool Success, string ErrorMessage)> RegisterAsync(string username, string password, string email, string fullName, string role)
+    public async Task<(bool Success, string ErrorMessage)> RegisterAsync(string username, string password, string email, string fullName, string role, string? studentCode)
     {
         // Business Rule: Check duplicate username
         var existingUser = await _dbContext.Accounts.FirstOrDefaultAsync(a => a.Username == username);
@@ -53,6 +53,7 @@ public class AuthService : IAuthService
             Email = email,
             FullName = fullName,
             Role = role,
+            StudentCode = studentCode,
             CreatedAt = DateTime.Now
         };
 

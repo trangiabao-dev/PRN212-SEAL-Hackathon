@@ -31,6 +31,13 @@ public class RegisterViewModel : ViewModelBase
         set { _fullName = value; OnPropertyChanged(); }
     }
 
+    private string _studentCode = string.Empty;
+    public string StudentCode
+    {
+        get => _studentCode;
+        set { _studentCode = value; OnPropertyChanged(); }
+    }
+
     private string _email = string.Empty;
     public string Email
     {
@@ -77,7 +84,8 @@ public class RegisterViewModel : ViewModelBase
         return !string.IsNullOrEmpty(Username) && 
                !string.IsNullOrEmpty(Password) &&
                !string.IsNullOrEmpty(Email) &&
-               !string.IsNullOrEmpty(FullName);
+               !string.IsNullOrEmpty(FullName) &&
+               !string.IsNullOrEmpty(StudentCode);
     }
 
     private async Task RegisterAsync()
@@ -85,7 +93,7 @@ public class RegisterViewModel : ViewModelBase
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
 
-        var result = await _authService.RegisterAsync(Username, Password, Email, FullName, Role);
+        var result = await _authService.RegisterAsync(Username, Password, Email, FullName, Role, StudentCode);
         
         if (!result.Success)
         {
@@ -98,6 +106,7 @@ public class RegisterViewModel : ViewModelBase
             Password = string.Empty;
             Email = string.Empty;
             FullName = string.Empty;
+            StudentCode = string.Empty;
         }
     }
 }
