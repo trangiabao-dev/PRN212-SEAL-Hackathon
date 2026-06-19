@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace PRN212_SEAL.Contracts.Teams;
 
-namespace PRN212_SEAL.Contracts.Teams
+public sealed class CreateTeamMemberRequest
 {
-    public sealed class CreateTeamMemberRequest
-    {
-        public string? Fullname { get; set; }
-        public string? StudentCode { get; set; }
-    }
+    public string FullName { get; set; } = string.Empty;
+
+    public string StudentCode { get; set; } = string.Empty;
 }
