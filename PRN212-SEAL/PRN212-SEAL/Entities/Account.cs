@@ -19,6 +19,8 @@ public partial class Account
 
     public DateTime CreatedAt { get; set; }
 
+    public string? StudentCode { get; set; }
+
     public virtual ICollection<Score> Scores { get; set; } = new List<Score>();
 
     public virtual Team? Team { get; set; }

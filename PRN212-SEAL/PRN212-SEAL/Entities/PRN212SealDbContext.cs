@@ -35,6 +35,10 @@ public partial class PRN212SealDbContext : DbContext
 
             entity.HasIndex(e => e.Username, "UQ_Account_Username").IsUnique();
 
+            entity.HasIndex(e => e.StudentCode, "UX_Account_StudentCode")
+                .IsUnique()
+                .HasFilter("([StudentCode] IS NOT NULL)");
+
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.Email)
                 .HasMaxLength(100)
@@ -45,6 +49,9 @@ public partial class PRN212SealDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.Role)
                 .HasMaxLength(20)
+                .IsUnicode(false);
+            entity.Property(e => e.StudentCode)
+                .HasMaxLength(8)
                 .IsUnicode(false);
             entity.Property(e => e.Username).HasMaxLength(50);
         });
