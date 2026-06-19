@@ -427,3 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Local SQL Server credentials
+PRN212-SEAL/PRN212-SEAL/appsettings.json
