@@ -3,6 +3,7 @@ using PRN212_SEAL.Services;
 using PRN212_SEAL.State;
 
 namespace PRN212_SEAL.ViewModels;
+
 public sealed class TeamManagementViewModel : ViewModelBase
 {
     private readonly ITeamService _teamService;
