@@ -1,9 +1,15 @@
-﻿<Application x:Class="PRN212_SEAL.App"
+<Application x:Class="PRN212_SEAL.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:PRN212_SEAL"
-             StartupUri="MainWindow.xaml">
+             xmlns:viewModels="clr-namespace:PRN212_SEAL.ViewModels"
+             xmlns:views="clr-namespace:PRN212_SEAL.Views">
     <Application.Resources>
-         
+        <DataTemplate DataType="{x:Type viewModels:LoginViewModel}">
+            <views:LoginView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type viewModels:RegisterViewModel}">
+            <views:RegisterView />
+        </DataTemplate>
     </Application.Resources>
 </Application>
