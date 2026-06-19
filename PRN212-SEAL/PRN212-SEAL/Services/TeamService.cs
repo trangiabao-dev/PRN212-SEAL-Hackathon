@@ -144,6 +144,39 @@ public sealed class TeamService : ITeamService
         return team.Id;
     }
 
+    public async Task<TeamDetailsResponse?> GetTeamByLeaderIdAsync(
+    int leaderId)
+    {
+        if (leaderId <= 0)
+        {
+            throw new ArgumentException(
+                "LeaderId không hợp lệ.",
+                nameof(leaderId));
+        }
+
+        return await _dbContext.Teams
+            .AsNoTracking()
+            .Where(team => team.LeaderId == leaderId)
+            .Select(team => new TeamDetailsResponse
+            {
+                TeamId = team.Id,
+                TeamName = team.TeamName,
+                CreatedAt = team.CreatedAt,
+
+                Members = team.TeamMembers
+                    .OrderByDescending(member => member.IsLeader)
+                    .ThenBy(member => member.FullName)
+                    .Select(member => new TeamMemberResponse
+                    {
+                        FullName = member.FullName,
+                        StudentCode = member.StudentCode,
+                        IsLeader = member.IsLeader
+                    })
+                    .ToList()
+            })
+            .SingleOrDefaultAsync();
+    }
+
     private static string ValidateTeamName(string? teamName)
     {
         string normalizedTeamName = teamName?.Trim() ?? string.Empty;
