@@ -17,6 +17,7 @@ BEGIN
         PasswordHash VARCHAR(255) NOT NULL,
         FullName NVARCHAR(100) NOT NULL,
         Email VARCHAR(100) NOT NULL,
+        StudentCode VARCHAR(8) NULL,
         Role VARCHAR(20) NOT NULL,
         CreatedAt DATETIME2 NOT NULL
             CONSTRAINT DF_Account_CreatedAt DEFAULT SYSDATETIME(),
@@ -24,8 +25,32 @@ BEGIN
         CONSTRAINT UQ_Account_Username UNIQUE (Username),
         CONSTRAINT UQ_Account_Email UNIQUE (Email),
         CONSTRAINT CK_Account_Role
-            CHECK (Role IN ('Leader', 'Judge'))
+            CHECK (Role IN ('Leader', 'Judge')),
+        CONSTRAINT CK_Account_StudentCode
+            CHECK
+            (
+                (Role = 'Leader'
+                    AND StudentCode IS NOT NULL
+                    AND StudentCode COLLATE Latin1_General_100_BIN2
+                        LIKE '[A-Z][A-Z][0-9][0-9][0-9][0-9][0-9][0-9]')
+                OR
+                (Role = 'Judge' AND StudentCode IS NULL)
+            )
     );
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'UX_Account_StudentCode'
+      AND object_id = OBJECT_ID(N'dbo.Account')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_Account_StudentCode
+        ON dbo.Account(StudentCode)
+        WHERE StudentCode IS NOT NULL;
 END;
 GO
 
