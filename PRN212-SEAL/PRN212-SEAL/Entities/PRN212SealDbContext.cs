@@ -23,6 +23,7 @@ public partial class PRN212SealDbContext : DbContext
 
     public virtual DbSet<TeamMember> TeamMembers { get; set; }
 
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Account>(entity =>
