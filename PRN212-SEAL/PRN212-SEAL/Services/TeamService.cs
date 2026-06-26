@@ -1,14 +1,18 @@
-﻿using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using PRN212_SEAL.Contracts.Teams;
 using PRN212_SEAL.Entities;
-using System.Text.RegularExpressions;
 
 namespace PRN212_SEAL.Services;
 
 public sealed class TeamService : ITeamService
 {
-    private const int MinMembers = 2;
-    private const int MaxMembers = 4;
+    private const int MinTotalTeamSize = 3;
+    private const int MaxTotalTeamSize = 5;
     private const int MaxTeamNameLength = 100;
     private const int MaxFullNameLength = 100;
 
@@ -25,90 +29,41 @@ public sealed class TeamService : ITeamService
     public async Task<int> CreateTeamAsync(int leaderId, CreateTeamRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-
-        if (leaderId <= 0)
-        {
-            throw new ArgumentException("LeaderId không hợp lệ.", nameof(leaderId));
-        }
+        if (leaderId <= 0) throw new ArgumentException("LeaderId không hợp lệ.", nameof(leaderId));
 
         string teamName = ValidateTeamName(request.TeamName);
-
-        List<CreateTeamMemberRequest> members = ValidateMembers(request.Members);
+        List<CreateTeamMemberRequest> regularMembers = ValidateRegularMembers(request.Members);
 
         Account? leader = await _dbContext.Accounts
             .AsNoTracking()
-            .SingleOrDefaultAsync(account => account.Id == leaderId);
+            .SingleOrDefaultAsync(a => a.Id == leaderId);
 
-        if (leader is null)
-        {
-            throw new InvalidOperationException("Không tìm thấy tài khoản Leader.");
-        }
-
+        if (leader is null) throw new InvalidOperationException("Không tìm thấy tài khoản Leader.");
         if (!string.Equals(leader.Role, "Leader", StringComparison.Ordinal))
-        {
             throw new InvalidOperationException("Tài khoản không có quyền tạo Team.");
-        }
 
-        string leaderStudentCode =
-            leader.StudentCode?.Trim() ?? string.Empty;
-
+        string leaderStudentCode = leader.StudentCode?.Trim() ?? string.Empty;
         if (!StudentCodePattern.IsMatch(leaderStudentCode))
-        {
-            throw new InvalidOperationException("StudentCode của Leader không hợp lệ.");
-        }
+            throw new InvalidOperationException("StudentCode của Leader không hợp lệ (VD chuẩn: SE123456).");
 
-        bool leaderAlreadyHasTeam = await _dbContext.Teams
-            .AnyAsync(team => team.LeaderId == leaderId);
-
-        if (leaderAlreadyHasTeam)
-        {
+        if (await _dbContext.Teams.AsNoTracking().AnyAsync(t => t.LeaderId == leaderId))
             throw new InvalidOperationException("Leader đã có Team và không thể tạo thêm.");
-        }
 
-        bool teamNameAlreadyExists = await _dbContext.Teams
-            .AnyAsync(team => team.TeamName == teamName);
+        if (await _dbContext.Teams.AsNoTracking().AnyAsync(t => t.TeamName == teamName))
+            throw new InvalidOperationException("Tên Team đã tồn tại trong hệ thống.");
 
-        if (teamNameAlreadyExists)
-        {
-            throw new InvalidOperationException("Tên Team đã tồn tại.");
-        }
-
-        List<string> memberStudentCodes = members.Select(member => member.StudentCode).ToList();
-
-        bool duplicatesLeader = memberStudentCodes.Contains(
-            leaderStudentCode, StringComparer.OrdinalIgnoreCase);
-
-        if (duplicatesLeader)
-        {
+        List<string> memberCodes = regularMembers.Select(m => m.StudentCode).ToList();
+        if (memberCodes.Any(c => string.Equals(c, leaderStudentCode, StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("StudentCode của thành viên không được trùng với Leader.");
-        }
 
-        bool belongsToAnotherAccount = await _dbContext.Accounts
-            .AsNoTracking()
-            .AnyAsync(account =>
-            account.StudentCode != null && memberStudentCodes.Contains(account.StudentCode));
+        if (await _dbContext.Accounts.AsNoTracking().AnyAsync(a => a.StudentCode != null && memberCodes.Contains(a.StudentCode)))
+            throw new InvalidOperationException("Một StudentCode trong danh sách đã thuộc về tài khoản khác.");
 
-        if (belongsToAnotherAccount)
-        {
-            throw new InvalidOperationException(
-                "Một StudentCode đã thuộc về tài khoản khác.");
-        }
+        List<string> allCodes = memberCodes.Append(leaderStudentCode).ToList();
+        if (await _dbContext.TeamMembers.AsNoTracking().AnyAsync(m => allCodes.Contains(m.StudentCode)))
+            throw new InvalidOperationException("Một StudentCode đã tham gia Team khác.");
 
-        List<string> allStudentCodes = memberStudentCodes.Append(leaderStudentCode).ToList();
-
-        bool alreadyBelongsToTeam = await _dbContext.TeamMembers
-            .AsNoTracking().AnyAsync(member => allStudentCodes.Contains(member.StudentCode));
-
-        if (alreadyBelongsToTeam)
-        {
-            throw new InvalidOperationException("Một StudentCode đã thuộc về Team khác.");
-        }
-
-        var team = new Team
-        {
-            TeamName = teamName,
-            LeaderId = leaderId
-        };
+        var team = new Team { TeamName = teamName, LeaderId = leaderId };
 
         team.TeamMembers.Add(new TeamMember
         {
@@ -117,12 +72,12 @@ public sealed class TeamService : ITeamService
             IsLeader = true
         });
 
-        foreach (CreateTeamMemberRequest member in members)
+        foreach (var m in regularMembers)
         {
             team.TeamMembers.Add(new TeamMember
             {
-                FullName = member.FullName,
-                StudentCode = member.StudentCode,
+                FullName = m.FullName,
+                StudentCode = m.StudentCode,
                 IsLeader = false
             });
         }
@@ -133,125 +88,78 @@ public sealed class TeamService : ITeamService
         {
             await _dbContext.SaveChangesAsync();
         }
-        catch (DbUpdateException exception)
+        catch (DbUpdateException ex)
         {
             _dbContext.ChangeTracker.Clear();
-
-            throw new InvalidOperationException(
-                "Không thể tạo Team vì dữ liệu đã thay đổi hoặc bị trùng.", exception);
+            throw new InvalidOperationException("Xung đột đồng thời: Mã sinh viên hoặc Tên nhóm đã tồn tại.", ex);
         }
 
         return team.Id;
     }
 
-    public async Task<TeamDetailsResponse?> GetTeamByLeaderIdAsync(
-    int leaderId)
+    public async Task<TeamDetailsResponse?> GetTeamByLeaderIdAsync(int leaderId)
     {
-        if (leaderId <= 0)
-        {
-            throw new ArgumentException(
-                "LeaderId không hợp lệ.",
-                nameof(leaderId));
-        }
-
-        return await _dbContext.Teams
-            .AsNoTracking()
-            .Where(team => team.LeaderId == leaderId)
-            .Select(team => new TeamDetailsResponse
-            {
-                TeamId = team.Id,
-                TeamName = team.TeamName,
-                CreatedAt = team.CreatedAt,
-
-                Members = team.TeamMembers
-                    .OrderByDescending(member => member.IsLeader)
-                    .ThenBy(member => member.FullName)
-                    .Select(member => new TeamMemberResponse
-                    {
-                        FullName = member.FullName,
-                        StudentCode = member.StudentCode,
-                        IsLeader = member.IsLeader
-                    })
-                    .ToList()
-            })
-            .SingleOrDefaultAsync();
+        if (leaderId <= 0) throw new ArgumentException("LeaderId không hợp lệ.", nameof(leaderId));
+        return await MapTeamQuery(_dbContext.Teams.Where(t => t.LeaderId == leaderId)).SingleOrDefaultAsync();
     }
 
-    private static string ValidateTeamName(string? teamName)
+    public async Task<List<TeamDetailsResponse>> GetAllTeamsAsync()
     {
-        string normalizedTeamName = teamName?.Trim() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(normalizedTeamName))
-        {
-            throw new ArgumentException("Tên Team không được để trống.");
-        }
-
-        if (normalizedTeamName.Length > MaxTeamNameLength)
-        {
-            throw new ArgumentException(
-                $"Tên Team không được vượt quá {MaxTeamNameLength} ký tự.");
-        }
-
-        return normalizedTeamName;
+        return await MapTeamQuery(_dbContext.Teams).ToListAsync();
     }
 
-    private static List<CreateTeamMemberRequest> ValidateMembers(
-        List<CreateTeamMemberRequest>? members)
+    private static IQueryable<TeamDetailsResponse> MapTeamQuery(IQueryable<Team> source)
     {
-        if (members is null)
+        return source.AsNoTracking().Select(team => new TeamDetailsResponse
         {
-            throw new ArgumentException("Danh sách thành viên không được để trống.");
+            TeamId = team.Id,
+            TeamName = team.TeamName,
+            CreatedAt = team.CreatedAt,
+            Members = team.TeamMembers
+                .OrderByDescending(m => m.IsLeader)
+                .ThenBy(m => m.FullName)
+                .Select(m => new TeamMemberResponse
+                {
+                    FullName = m.FullName,
+                    StudentCode = m.StudentCode,
+                    IsLeader = m.IsLeader
+                }).ToList()
+        });
+    }
+
+    private static string ValidateTeamName(string? name)
+    {
+        string norm = name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(norm)) throw new ArgumentException("Tên Team không được để trống.");
+        if (norm.Length > MaxTeamNameLength) throw new ArgumentException($"Tên Team không vượt quá {MaxTeamNameLength} ký tự.");
+        return norm;
+    }
+
+    private static List<CreateTeamMemberRequest> ValidateRegularMembers(List<CreateTeamMemberRequest>? members)
+    {
+        if (members is null) throw new ArgumentException("Danh sách thành viên không được để trống.");
+
+        int totalSize = members.Count + 1;
+        if (totalSize < MinTotalTeamSize || totalSize > MaxTotalTeamSize)
+            throw new ArgumentException($"Team phải có tổng từ {MinTotalTeamSize} đến {MaxTotalTeamSize} người (tính cả Leader).");
+
+        var result = new List<CreateTeamMemberRequest>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var m in members)
+        {
+            if (m is null) throw new ArgumentException("Thông tin thành viên không hợp lệ.");
+            string fn = m.FullName?.Trim() ?? string.Empty;
+            string sc = m.StudentCode?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(fn)) throw new ArgumentException("Họ tên thành viên không được để trống.");
+            if (fn.Length > MaxFullNameLength) throw new ArgumentException($"Họ tên không vượt quá {MaxFullNameLength} ký tự.");
+            if (!StudentCodePattern.IsMatch(sc)) throw new ArgumentException($"StudentCode '{sc}' phải gồm 2 chữ hoa và 6 chữ số (VD: SE123456).");
+            if (!seen.Add(sc)) throw new ArgumentException($"StudentCode '{sc}' bị nhập trùng trong danh sách.");
+
+            result.Add(new CreateTeamMemberRequest { FullName = fn, StudentCode = sc });
         }
 
-        if (members.Count is < MinMembers or > MaxMembers)
-        {
-            throw new ArgumentException("Team phải có từ 3 đến 5 người, bao gồm Leader.");
-        }
-
-        var normalizedMembers = new List<CreateTeamMemberRequest>();
-        var studentCodes = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (CreateTeamMemberRequest member in members)
-        {
-            if (member is null)
-            {
-                throw new ArgumentException("Thông tin thành viên không hợp lệ.");
-            }
-
-            string fullName = member.FullName?.Trim() ?? string.Empty;
-            string studentCode =
-                member.StudentCode?.Trim() ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(fullName))
-            {
-                throw new ArgumentException("Họ tên thành viên không được để trống.");
-            }
-
-            if (fullName.Length > MaxFullNameLength)
-            {
-                throw new ArgumentException($"Họ tên không được vượt quá {MaxFullNameLength} ký tự.");
-            }
-
-            if (!StudentCodePattern.IsMatch(studentCode))
-            {
-                throw new ArgumentException(
-                    $"StudentCode '{studentCode}' phải gồm 2 chữ hoa và 6 chữ số.");
-            }
-
-            if (!studentCodes.Add(studentCode))
-            {
-                throw new ArgumentException(
-                    $"StudentCode '{studentCode}' bị trùng trong danh sách.");
-            }
-
-            normalizedMembers.Add(new CreateTeamMemberRequest
-            {
-                FullName = fullName,
-                StudentCode = studentCode
-            });
-        }
-
-        return normalizedMembers;
+        return result;
     }
 }
