@@ -11,5 +11,9 @@
         <DataTemplate DataType="{x:Type viewModels:RegisterViewModel}">
             <views:RegisterView />
         </DataTemplate>
+        <!-- [NEW] Ánh xạ ViewModel Quản lý Team sang giao diện WPF thực tế -->
+        <DataTemplate DataType="{x:Type viewModels:TeamManagementViewModel}">
+            <views:TeamManagementView />
+        </DataTemplate>
     </Application.Resources>
 </Application>
