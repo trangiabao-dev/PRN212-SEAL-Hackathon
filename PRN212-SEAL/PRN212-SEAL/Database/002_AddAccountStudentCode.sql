@@ -19,9 +19,7 @@ IF EXISTS
        OR (Role = 'Judge' AND StudentCode IS NOT NULL)
 )
 BEGIN
-    THROW 50001,
-        'Account data is invalid: Leader requires StudentCode in format AA123456; Judge requires NULL.',
-        1;
+    RAISERROR('Account data is invalid: Leader requires StudentCode in format AA123456; Judge requires NULL.', 16, 1);
 END;
 GO
 
